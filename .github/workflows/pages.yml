@@ -33,6 +33,9 @@ jobs:
           # Diesel heater Bluetooth app (diesel-heater/README.md)
           mkdir -p _site/diesel-heater
           cp diesel-heater/web-ble/{index.html,protocol.js,sw.js,manifest.webmanifest,icon.svg} _site/diesel-heater/
+          # Same app at /diesel-heater/web-ble/, the path a branch-based Pages build serves.
+          mkdir -p _site/diesel-heater/web-ble
+          cp diesel-heater/web-ble/{index.html,protocol.js,sw.js,manifest.webmanifest,icon.svg} _site/diesel-heater/web-ble/
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
