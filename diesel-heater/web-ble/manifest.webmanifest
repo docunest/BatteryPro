@@ -1,0 +1,9 @@
+{
+  "name": "Diesel Heater",
+  "short_name": "Heater",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#131418",
+  "theme_color": "#1b1d22",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

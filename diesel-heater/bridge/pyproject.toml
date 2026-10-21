@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heaterbridge"
+version = "0.1.0"
+description = "Bluetooth bridge for Vevor / AirHeaterBLE diesel heaters: web UI, Home Assistant (MQTT) and HomeKit"
+requires-python = ">=3.11"
+dependencies = [
+    "bleak>=0.22",
+    "aiohttp>=3.9",
+]
+
+[project.optional-dependencies]
+mqtt = ["aiomqtt>=2.0"]
+homekit = ["HAP-python>=4.9"]
+all = ["aiomqtt>=2.0", "HAP-python>=4.9"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+heaterbridge = "heaterbridge.__main__:main"
+
+[tool.setuptools]
+packages = ["heaterbridge"]
+
+[tool.setuptools.package-data]
+heaterbridge = ["static/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

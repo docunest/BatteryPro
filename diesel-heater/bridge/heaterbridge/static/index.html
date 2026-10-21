@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1b1d22">
+<title>Diesel Heater</title>
+<style>
+  :root { --bg:#f4f4f2; --card:#fff; --fg:#1b1d22; --mut:#6b6f78; --acc:#e4572e; --ok:#2e8b57; --bd:#e2e2de; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#131418; --card:#1d1f25; --fg:#ecebe8; --mut:#9a9ea8; --bd:#2c2f37; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.4 system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:460px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; margin:4px 0 12px; display:flex; justify-content:space-between; align-items:center; }
+  .pill { font-size:12px; padding:3px 9px; border-radius:99px; background:var(--bd); color:var(--mut); font-weight:500; }
+  .pill.ok { background:var(--ok); color:#fff; } .pill.bad { background:var(--acc); color:#fff; }
+  .card { background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:16px; margin-bottom:12px; }
+  .big { font-size:44px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .mut { color:var(--mut); font-size:14px; }
+  button { font:inherit; border:1px solid var(--bd); background:var(--card); color:var(--fg); border-radius:10px; padding:10px 14px; cursor:pointer; }
+  button.on { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .power { width:100%; padding:16px; font-size:18px; font-weight:600; }
+  .seg { display:flex; gap:6px; } .seg button { flex:1; }
+  .levels { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:10px; }
+  .stepper { display:flex; align-items:center; gap:12px; } .stepper button { width:48px; font-size:22px; padding:6px; }
+  dl { display:grid; grid-template-columns:1fr auto; gap:4px 12px; margin:0; font-size:14px; }
+  dt { color:var(--mut); } dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+  .err { color:var(--acc); font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Diesel heater <span id="conn" class="pill">…</span></h1>
+
+  <div class="card">
+    <div class="row">
+      <div><div class="mut" id="tlabel">Temperature</div><div class="big" id="temp">–</div></div>
+      <div style="text-align:right"><div class="mut">State</div><div id="step" style="font-weight:600">–</div><div class="mut" id="lvlnow"></div></div>
+    </div>
+    <div id="fault" class="err"></div>
+  </div>
+
+  <div class="card"><button id="power" class="power">Turn on</button></div>
+
+  <div class="card">
+    <div class="seg"><button data-mode="manual">Fixed level</button><button data-mode="thermostat">Thermostat</button></div>
+    <div id="manual" style="margin-top:12px">
+      <div class="mut">Power level</div>
+      <div class="levels" id="levels"></div>
+    </div>
+    <div id="thermo" style="margin-top:12px">
+      <div class="row">
+        <div><div class="mut">Target</div><div class="big" id="target">–</div></div>
+        <div class="stepper"><button data-d="-0.5">−</button><button data-d="0.5">+</button></div>
+      </div>
+      <div class="mut" id="decision"></div>
+    </div>
+  </div>
+
+  <div class="card"><dl id="diag"></dl></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const token = new URLSearchParams(location.search).get("token");
+let S = null;
+
+async function api(path, body) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = "Bearer " + token;
+  const r = await fetch("/api/" + path, body === undefined ? { headers } : { method: "POST", headers, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(await r.text());
+  S = await r.json(); render();
+}
+
+for (let i = 1; i <= 10; i++) {
+  const b = document.createElement("button"); b.textContent = i; b.dataset.level = i;
+  b.onclick = () => api("level", { level: i }); $("levels").appendChild(b);
+}
+document.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => api("mode", { mode: b.dataset.mode })));
+document.querySelectorAll("[data-d]").forEach((b) => (b.onclick = () => api("target", { target: S.target + +b.dataset.d })));
+$("power").onclick = () => api("power", { on: !S.enabled });
+
+function render() {
+  const h = S.heater || {};
+  $("conn").textContent = S.connected ? (S.device || "connected") : "disconnected";
+  $("conn").className = "pill " + (S.connected ? "ok" : "bad");
+  $("temp").textContent = S.temperature == null ? "–" : S.temperature.toFixed(1) + "°";
+  $("tlabel").textContent = S.temp_source === "external" ? "Room (external sensor)" : "Room (heater sensor)";
+  $("step").textContent = h.running_step || "–";
+  $("lvlnow").textContent = h.level ? "level " + h.level : "";
+  $("fault").textContent = S.fault || h.error || "";
+  $("power").textContent = S.enabled ? "Turn off" : "Turn on";
+  $("power").className = "power" + (S.enabled ? " on" : "");
+  document.querySelectorAll("[data-mode]").forEach((b) => b.classList.toggle("on", b.dataset.mode === S.mode));
+  document.querySelectorAll("[data-level]").forEach((b) => b.classList.toggle("on", +b.dataset.level === S.manual_level));
+  $("manual").hidden = S.mode !== "manual";
+  $("thermo").hidden = S.mode !== "thermostat";
+  $("target").textContent = S.target.toFixed(1) + "°";
+  $("decision").textContent = S.enabled ? S.decision : "Heater is switched off";
+  const rows = [
+    ["Supply voltage", h.voltage != null ? h.voltage.toFixed(1) + " V" : "–"],
+    ["Heat exchanger", h.case_temp != null ? h.case_temp + " °C" : "–"],
+    ["Heater sensor", h.room_temp != null ? h.room_temp + " °C" : "–"],
+    ["Heater mode", h.running_mode || "–"],
+    ["Protocol", h.protocol || "–"],
+  ];
+  $("diag").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+}
+
+async function poll() { try { await api("state"); } catch (e) { $("conn").textContent = "bridge offline"; $("conn").className = "pill bad"; } }
+poll(); setInterval(poll, 3000);
+</script>
+</body>
+</html>
