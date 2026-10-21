@@ -1063,6 +1063,24 @@ if (window.visualViewport) {
 }
 window.addEventListener('resize', fitViewport);
 
+// ---------------------------------------------------------------- build info
+// The deploy workflow replaces the placeholder with the build date and commit.
+// When deployed straight from a branch it stays untouched, so fall back to the
+// Last-Modified date of the app.js copy that is actually running (cached by the service worker).
+const BUILD = '__BUILD_INFO__';
+async function showBuildInfo() {
+  let label = BUILD.startsWith('__') ? '' : BUILD;
+  if (!label) {
+    try {
+      const r = ('caches' in window && await caches.match('app.js', { ignoreSearch: true })) ||
+        await fetch('app.js', { method: 'HEAD', cache: 'no-store' });
+      const lm = r && r.headers.get('last-modified');
+      if (lm) label = new Date(lm).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+    } catch { /* offline and not cached */ }
+  }
+  $('#buildInfo').textContent = `Build ${label || 'unknown'}`;
+}
+
 // ---------------------------------------------------------------- boot
 (async function boot() {
   fitViewport();
@@ -1071,6 +1089,7 @@ window.addEventListener('resize', fitViewport);
     return;
   }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  showBuildInfo();
   await DB.open();
   Vault.meta = (await DB.get('meta', 'vault')) || null;
   showLock();
