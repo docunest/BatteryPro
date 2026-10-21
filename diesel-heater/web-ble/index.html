@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1b1d22">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Diesel Heater</title>
+<style>
+  :root { --bg:#f4f4f2; --card:#fff; --fg:#1b1d22; --mut:#6b6f78; --acc:#e4572e; --ok:#2e8b57; --bd:#e2e2de; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#131418; --card:#1d1f25; --fg:#ecebe8; --mut:#9a9ea8; --bd:#2c2f37; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.4 system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:460px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; margin:4px 0 12px; display:flex; justify-content:space-between; align-items:center; }
+  .pill { font-size:12px; padding:3px 9px; border-radius:99px; background:var(--bd); color:var(--mut); font-weight:500; }
+  .pill.ok { background:var(--ok); color:#fff; }
+  .card { background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:16px; margin-bottom:12px; }
+  .big { font-size:44px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .mut { color:var(--mut); font-size:14px; }
+  button { font:inherit; border:1px solid var(--bd); background:var(--card); color:var(--fg); border-radius:10px; padding:10px 14px; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.on { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .wide { width:100%; padding:16px; font-size:18px; font-weight:600; }
+  .levels { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:10px; }
+  dl { display:grid; grid-template-columns:1fr auto; gap:4px 12px; margin:0; font-size:14px; }
+  dt { color:var(--mut); } dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+  .err { color:var(--acc); font-weight:600; }
+  input { font:inherit; width:6em; padding:6px 8px; border:1px solid var(--bd); border-radius:8px; background:var(--card); color:var(--fg); }
+  details summary { cursor:pointer; color:var(--mut); font-size:14px; }
+  label { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px; font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Diesel heater <span id="conn" class="pill">not connected</span></h1>
+
+  <div class="card" id="unsupported" hidden>
+    <b>Web Bluetooth isn't available in this browser.</b>
+    <p class="mut">Use Chrome or Edge on Android, macOS, Windows or ChromeOS, and open this page over https:// (or from localhost).</p>
+  </div>
+
+  <div class="card"><button id="connect" class="wide">Connect to heater</button>
+    <p class="mut" style="margin:8px 0 0">Close the AirHeaterBLE app first; the heater accepts only one Bluetooth connection at a time.</p></div>
+
+  <div class="card">
+    <div class="row">
+      <div><div class="mut">Room (heater sensor)</div><div class="big" id="temp">–</div></div>
+      <div style="text-align:right"><div class="mut">State</div><div id="step" style="font-weight:600">–</div><div class="mut" id="lvlnow"></div></div>
+    </div>
+    <div id="fault" class="err"></div>
+  </div>
+
+  <div class="card"><button id="power" class="wide" disabled>Turn on</button></div>
+
+  <div class="card">
+    <div class="mut">Power level</div>
+    <div class="levels" id="levels"></div>
+  </div>
+
+  <div class="card"><dl id="diag"></dl></div>
+
+  <div class="card">
+    <details>
+      <summary>Settings</summary>
+      <label>Passkey (from AirHeaterBLE) <input id="passkey" type="number" min="0" max="9999"></label>
+      <label>Name prefix filter <input id="prefix" type="text"></label>
+      <label>Show all Bluetooth devices <input id="all" type="checkbox" style="width:auto"></label>
+    </details>
+  </div>
+</main>
+<script type="module">
+import { SERVICE_UUID, CHAR_UUID, CMD, MODE, buildCommand, parseStatus } from "./protocol.js";
+
+const $ = (id) => document.getElementById(id);
+const store = {
+  get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+$("passkey").value = store.get("passkey", "1234");
+$("prefix").value = store.get("prefix", "BYD");
+$("all").checked = store.get("all", "0") === "1";
+$("passkey").onchange = () => store.set("passkey", $("passkey").value);
+$("prefix").onchange = () => store.set("prefix", $("prefix").value);
+$("all").onchange = () => store.set("all", $("all").checked ? "1" : "0");
+
+let device = null, chr = null, status = null, pollTimer = null, queue = Promise.resolve(), userClosed = false;
+const passkey = () => parseInt($("passkey").value || "1234", 10);
+
+if (!navigator.bluetooth) { $("unsupported").hidden = false; $("connect").disabled = true; }
+
+for (let i = 1; i <= 10; i++) {
+  const b = document.createElement("button");
+  b.textContent = i; b.dataset.level = i; b.disabled = true;
+  b.onclick = () => setLevel(i);
+  $("levels").appendChild(b);
+}
+
+// Serialise writes; the controller drops back-to-back packets.
+function send(cmd, arg = 0) {
+  queue = queue.then(async () => {
+    if (!chr) return;
+    await chr.writeValueWithResponse(buildCommand(cmd, arg, passkey()));
+    await new Promise((r) => setTimeout(r, 300));
+  }).catch((e) => console.warn("write failed", e));
+  return queue;
+}
+
+async function setLevel(level) {
+  if (status && status.runningMode !== "level") await send(CMD.SET_MODE, MODE.LEVEL);
+  await send(CMD.SET_TARGET, level);
+  await send(CMD.STATUS);
+}
+
+$("power").onclick = async () => {
+  const on = !(status && status.running && status.runningStep !== "cooldown");
+  if (on && status && status.runningMode !== "level") await send(CMD.SET_MODE, MODE.LEVEL);
+  await send(CMD.POWER, on ? 1 : 0);
+  await send(CMD.STATUS);
+};
+
+$("connect").onclick = async () => {
+  if (device?.gatt.connected) { userClosed = true; device.gatt.disconnect(); return; }
+  userClosed = false;
+  try {
+    const opts = $("all").checked
+      ? { acceptAllDevices: true, optionalServices: [SERVICE_UUID] }
+      : { filters: [{ namePrefix: $("prefix").value || "BYD" }, { services: [SERVICE_UUID] }], optionalServices: [SERVICE_UUID] };
+    device = await navigator.bluetooth.requestDevice(opts);
+    device.addEventListener("gattserverdisconnected", onDisconnect);
+    await connect();
+  } catch (e) {
+    if (e.name !== "NotFoundError") alert(e.message);
+  }
+};
+
+async function connect() {
+  $("conn").textContent = "connecting…";
+  const server = await device.gatt.connect();
+  const svc = await server.getPrimaryService(SERVICE_UUID);
+  chr = await svc.getCharacteristic(CHAR_UUID);
+  chr.addEventListener("characteristicvaluechanged", (ev) => {
+    const v = ev.target.value;
+    const s = parseStatus(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+    if (s) { status = s; render(); }
+  });
+  await chr.startNotifications();
+  $("conn").textContent = device.name || "connected"; $("conn").className = "pill ok";
+  $("connect").textContent = "Disconnect";
+  setControls(true);
+  send(CMD.STATUS);
+  pollTimer = setInterval(() => send(CMD.STATUS), 3000);
+}
+
+async function onDisconnect() {
+  clearInterval(pollTimer); chr = null; setControls(false);
+  $("conn").textContent = "reconnecting…"; $("conn").className = "pill";
+  $("connect").textContent = "Connect to heater";
+  for (let i = 0; i < 5 && device && !userClosed; i++) {
+    await new Promise((r) => setTimeout(r, 2000 * (i + 1)));
+    try { await connect(); return; } catch (e) { console.warn("reconnect failed", e); }
+  }
+  $("conn").textContent = "not connected";
+}
+
+function setControls(on) {
+  $("power").disabled = !on;
+  document.querySelectorAll("[data-level]").forEach((b) => (b.disabled = !on));
+}
+
+function render() {
+  const s = status;
+  const on = s.running && s.runningStep !== "cooldown";
+  $("temp").textContent = s.roomTemp == null ? "–" : s.roomTemp.toFixed(1) + "°";
+  $("step").textContent = s.runningStep;
+  $("lvlnow").textContent = "level " + s.level;
+  $("fault").textContent = s.error || "";
+  $("power").textContent = on ? "Turn off" : "Turn on";
+  $("power").className = "wide" + (on ? " on" : "");
+  document.querySelectorAll("[data-level]").forEach((b) => b.classList.toggle("on", +b.dataset.level === s.level));
+  const rows = [
+    ["Supply voltage", s.voltage.toFixed(1) + " V"],
+    ["Heat exchanger", s.caseTemp + " °C"],
+    ["Heater mode", s.runningMode],
+    ["Protocol", s.protocol],
+  ];
+  $("diag").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+}
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>

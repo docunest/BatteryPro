@@ -1,0 +1,53 @@
+# Copy to config.toml and run:  heaterbridge -c config.toml run
+
+# Where state (last target/level, HomeKit pairing) is stored
+state_dir = "~/.heaterbridge"
+
+[heater]
+# Leave empty to auto-connect to the first device whose name starts with name_prefix.
+# Run `heaterbridge scan` to see the address (macOS shows a UUID instead of a MAC).
+address = ""
+name_prefix = "BYD"
+passkey = 1234          # same 4-digit code as in the AirHeaterBLE app
+poll_interval = 5       # seconds between status requests
+
+[temperature]
+# "heater"   = the sensor in the heater's control panel (often reads high)
+# "external" = a room sensor you push via MQTT (below) or POST /api/temperature
+source = "heater"
+# mqtt_topic = "zigbee2mqtt/living_room_sensor"
+# mqtt_field = "temperature"   # JSON field; plain numeric payloads also work
+
+[thermostat]
+start_below = 1.0       # start burner when temp <= target - 1.0
+stop_above = 1.5        # stop burner when temp >= target + 1.5 ...
+stop_delay = 300        # ... for this many seconds
+allow_stop = true       # false = never stop, just idle at min_level
+min_run = 1800          # never stop a burner within 30 min of starting (avoids coking)
+min_rest = 600          # never restart within 10 min of stopping
+min_level = 1
+max_level = 10
+full_power_error = 3.0  # °C below target that means "full power"
+ki = 2.0                # integral gain, levels per °C·hour
+level_interval = 60     # seconds between level changes
+max_level_step = 2
+
+[web]
+enabled = true
+host = "0.0.0.0"
+port = 8080
+# token = "change-me"   # require ?token=... / Authorization: Bearer ...
+
+[mqtt]
+enabled = false
+host = "homeassistant.local"
+port = 1883
+# username = "mqtt"
+# password = "secret"
+base_topic = "dieselheater"
+discovery_prefix = "homeassistant"
+
+[homekit]
+enabled = false
+name = "Diesel Heater"
+port = 51826
