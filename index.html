@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src https:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI Chat">
+<meta name="theme-color" content="#0f1115">
+<title>Private AI Chat</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="veil"></div>
+
+<!-- Lock / setup screen -->
+<section id="lock" hidden>
+  <div class="lock-card">
+    <img class="logo" src="icons/icon-192.png" alt="">
+    <h1 id="lockTitle">Private AI Chat</h1>
+    <p id="lockSub" class="muted"></p>
+    <button id="faceBtn" class="primary big" type="button" hidden>Unlock with Face ID</button>
+    <form id="lockForm" autocomplete="off">
+      <input id="pass1" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Passcode" required>
+      <input id="pass2" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Confirm passcode" hidden>
+      <button type="submit" id="lockSubmit" class="primary">Unlock</button>
+    </form>
+    <p id="lockErr" class="err" role="alert"></p>
+    <p id="lockHint" class="fine"></p>
+  </div>
+</section>
+
+<!-- Main app -->
+<div id="app" hidden>
+  <aside id="drawer">
+    <div class="drawer-head">
+      <button id="newChat" class="primary wide" type="button">+ New chat</button>
+    </div>
+    <input id="search" type="search" placeholder="Search chats" autocomplete="off">
+    <ul id="chatList"></ul>
+    <div class="drawer-foot">
+      <button id="openSettings" type="button">⚙︎ Settings</button>
+      <button id="lockNow" type="button">🔒 Lock</button>
+    </div>
+  </aside>
+  <div id="scrim"></div>
+
+  <section id="main">
+    <header id="topbar">
+      <button id="menuBtn" class="icon" type="button" aria-label="Chats">☰</button>
+      <h2 id="chatTitle">New chat</h2>
+      <button id="newChat2" class="icon" type="button" aria-label="New chat">✎</button>
+    </header>
+    <div id="messages"></div>
+    <form id="composer" autocomplete="off">
+      <button type="button" id="imgMode" class="icon" aria-pressed="false" title="Image mode: send prompt straight to the image model">🎨</button>
+      <textarea id="input" rows="1" placeholder="Message"></textarea>
+      <button type="submit" id="sendBtn" class="send" aria-label="Send">↑</button>
+    </form>
+  </section>
+</div>
+
+<!-- Settings -->
+<dialog id="settings">
+  <form id="settingsForm" method="dialog" autocomplete="off">
+    <header class="dlg-head">
+      <h3>Settings</h3>
+      <button value="close" class="icon" aria-label="Close">✕</button>
+    </header>
+    <div class="dlg-body">
+      <fieldset>
+        <legend>Chat model</legend>
+        <label>Provider
+          <select name="provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="custom">Custom (OpenAI-compatible)</option>
+          </select>
+        </label>
+        <label>API key
+          <input name="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-…">
+        </label>
+        <label data-show="openai custom openrouter">Base URL
+          <input name="baseUrl" type="url" autocapitalize="off" spellcheck="false">
+        </label>
+        <label>Model
+          <div class="row">
+            <input name="model" list="modelList" autocapitalize="off" spellcheck="false">
+            <button type="button" id="fetchModels">Fetch</button>
+          </div>
+          <datalist id="modelList"></datalist>
+        </label>
+        <label>System prompt
+          <textarea name="systemPrompt" rows="3"></textarea>
+        </label>
+        <label data-show="anthropic">Max output tokens
+          <input name="maxTokens" type="number" min="256" step="256">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Image generation (OpenAI Images API)</legend>
+        <p class="fine">Leave the key empty to reuse the chat key when the provider is OpenAI.</p>
+        <label>Image API key
+          <input name="imageKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="optional">
+        </label>
+        <label>Image base URL
+          <input name="imageBaseUrl" type="url" autocapitalize="off" spellcheck="false">
+        </label>
+        <label>Image model
+          <input name="imageModel" list="imageModelList" autocapitalize="off" spellcheck="false">
+          <datalist id="imageModelList">
+            <option value="gpt-image-1"></option>
+            <option value="gpt-image-1-mini"></option>
+            <option value="dall-e-3"></option>
+          </datalist>
+        </label>
+        <label>Default shape
+          <select name="imageSize">
+            <option value="square">Square</option>
+            <option value="landscape">Landscape</option>
+            <option value="portrait">Portrait</option>
+          </select>
+        </label>
+        <label>Quality
+          <select name="imageQuality">
+            <option value="auto">Auto</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Security</legend>
+        <label>Auto-lock after leaving the app
+          <select name="autoLock">
+            <option value="0">Immediately</option>
+            <option value="1">1 minute</option>
+            <option value="5">5 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="60">1 hour</option>
+          </select>
+        </label>
+        <div class="row gap">
+          <button type="button" id="faceToggle">Enable Face ID</button>
+          <button type="button" id="changePass">Change passcode</button>
+        </div>
+        <p id="faceStatus" class="fine"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Data</legend>
+        <p class="fine">Everything is stored only on this device, encrypted with AES-256-GCM. Requests go directly from your phone to the AI provider — no other servers.</p>
+        <div class="row gap">
+          <button type="button" id="exportBtn">Export chats</button>
+          <button type="button" id="wipeBtn" class="danger">Erase everything</button>
+        </div>
+      </fieldset>
+    </div>
+    <footer class="dlg-foot">
+      <button value="save" class="primary wide" id="saveSettings">Save</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- Image viewer -->
+<dialog id="viewer">
+  <img id="viewerImg" alt="">
+  <p class="fine" id="viewerCap"></p>
+  <div class="row gap">
+    <a id="viewerSave" class="btn" download="image.png">Save</a>
+    <button type="button" id="viewerClose">Close</button>
+  </div>
+</dialog>
+
+<!-- Generic modal for Face ID confirmation step -->
+<dialog id="tapDlg">
+  <p id="tapMsg"></p>
+  <div class="row gap">
+    <button type="button" id="tapOk" class="primary">Continue</button>
+    <button type="button" id="tapCancel">Cancel</button>
+  </div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
