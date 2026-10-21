@@ -95,6 +95,7 @@ body.veiled #veil { display: block; }
 .drawer-foot { display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
 .drawer-foot button { flex: 1; }
 #scrim { display: none; }
+.build { text-align: center; margin: 8px 0 0; font-size: 11px; }
 
 #main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 #topbar {

@@ -29,6 +29,7 @@ jobs:
         run: |
           mkdir -p _site
           cp -r index.html style.css app.js sw.js manifest.webmanifest icons .nojekyll _site/
+          sed -i "s/__BUILD_INFO__/$(date -u '+%Y-%m-%d %H:%M UTC') · ${GITHUB_SHA::7}/" _site/app.js
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
