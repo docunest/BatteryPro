@@ -131,7 +131,10 @@ class Heater:
             raise ConnectionError("heater not connected")
         async with self._lock:
             log.debug("TX %s", pkt.hex())
-            await self._client.write_gatt_char(p.CHAR_UUID, pkt, response=True)
+            char = self._client.services.get_characteristic(p.CHAR_UUID)
+            # Prefer acknowledged writes; some units only support write-without-response.
+            response = char is None or "write" in char.properties
+            await self._client.write_gatt_char(p.CHAR_UUID, pkt, response=response)
             await asyncio.sleep(0.3)  # the controller drops back-to-back writes
 
     async def wait_for_status(self, timeout: float = 30.0) -> p.HeaterStatus:

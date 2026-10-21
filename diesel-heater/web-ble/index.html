@@ -39,7 +39,7 @@
 
   <div class="card" id="unsupported" hidden>
     <b>Web Bluetooth isn't available in this browser.</b>
-    <p class="mut">Use Chrome or Edge on Android, macOS, Windows or ChromeOS, and open this page over https:// (or from localhost).</p>
+    <p class="mut">On iPhone/iPad open this page in the <b>Bluefy</b> app. Elsewhere use Chrome or Edge (Android, macOS, Windows, ChromeOS). The page must be opened over https:// (or from localhost).</p>
   </div>
 
   <div class="card"><button id="connect" class="wide">Connect to heater</button>
@@ -98,11 +98,20 @@ for (let i = 1; i <= 10; i++) {
   $("levels").appendChild(b);
 }
 
+// Some heaters only accept write-without-response, and older Web Bluetooth
+// implementations (e.g. some Bluefy versions) only have writeValue().
+function write(pkt) {
+  const props = chr.properties || {};
+  if (props.write === false && props.writeWithoutResponse && chr.writeValueWithoutResponse) return chr.writeValueWithoutResponse(pkt);
+  if (chr.writeValueWithResponse) return chr.writeValueWithResponse(pkt);
+  return chr.writeValue(pkt);
+}
+
 // Serialise writes; the controller drops back-to-back packets.
 function send(cmd, arg = 0) {
   queue = queue.then(async () => {
     if (!chr) return;
-    await chr.writeValueWithResponse(buildCommand(cmd, arg, passkey()));
+    await write(buildCommand(cmd, arg, passkey()));
     await new Promise((r) => setTimeout(r, 300));
   }).catch((e) => console.warn("write failed", e));
   return queue;

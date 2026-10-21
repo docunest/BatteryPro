@@ -5,7 +5,7 @@ These heaters advertise as `BYD-xxxx`. The project has two parts:
 
 | | What | Runs on | Use it for |
 |---|---|---|---|
-| [`web-ble/`](web-ble) | Installable web app using Web Bluetooth | Chrome/Edge on **Android** and **macOS** | Phone/laptop remote: on/off, level 1-10, live status |
+| [`web-ble/`](web-ble) | Web app using Web Bluetooth | **iPhone/iPad via the Bluefy app**, Chrome/Edge on **Android** and **macOS** | Phone/laptop remote: on/off, level 1-10, live status |
 | [`bridge/`](bridge) | Python service (`heaterbridge`) | **macOS**, Linux, Raspberry Pi | Exposing the heater as a **smart device**: Home Assistant (MQTT auto-discovery), Apple HomeKit/Siri, REST API + web UI, and a better thermostat |
 
 > The heater accepts **one** Bluetooth connection at a time. Close the
@@ -32,19 +32,34 @@ All of these are tunable in `config.toml` (`[thermostat]`).
 
 ## web-ble: phone / browser app
 
-Web Bluetooth needs HTTPS (or `localhost`). Options:
+Web Bluetooth needs the page on an HTTPS address (or `localhost`). The app is
+plain static files (no build step), so any static host works. This repo is
+private, so free options that can deploy from a private repo:
 
-- **Host it** on any static HTTPS host (GitHub Pages, Netlify, ...), open it in
-  Chrome on Android, then *Add to Home screen*. It works like an app.
+- **Cloudflare Pages**: *Workers & Pages → Create → Pages → Connect to Git*,
+  pick this repo, framework preset *None*, build command empty, output
+  directory `projects/diesel-heater/web-ble`.
+- **Netlify**: *Add new site → Import from Git*, base directory
+  `projects/diesel-heater/web-ble`, no build command. Or drag the `web-ble`
+  folder onto <https://app.netlify.com/drop> for a one-off upload.
 - **Locally on the Mac:** `cd web-ble && python3 -m http.server 8000`, open
   <http://localhost:8000> in Chrome.
+
+Then open the URL in:
+
+- **iPhone / iPad:** the free **Bluefy** browser from the App Store (Safari
+  and Chrome on iOS don't support Web Bluetooth). Bookmark the page in Bluefy.
+- **Android:** Chrome, then *Add to Home screen*. It works like an app.
+- **Mac:** Chrome or Edge.
 
 Tap **Connect**, pick `BYD-xxxx`, then use **Turn on/off** and levels **1-10**.
 Changing level switches the heater into fixed-level mode automatically.
 If your heater isn't named `BYD…`, change the prefix or tick *Show all
 devices* under Settings. Set the passkey there if you changed it from 1234.
 
-Safari/iOS don't support Web Bluetooth.
+The page only controls the heater while it's open in the foreground. On
+iPhone the connection drops when you switch apps or lock the screen, and it
+reconnects when you come back.
 
 ## bridge: smart-home service (macOS)
 
