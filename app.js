@@ -183,6 +183,7 @@ const PROVIDERS = {
   openai: { base: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' },
   anthropic: { base: 'https://api.anthropic.com/v1', model: 'claude-sonnet-5-5' },
   openrouter: { base: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' },
+  deepseek: { base: 'https://api.deepseek.com', model: 'deepseek-flash' },
   custom: { base: '', model: '' },
 };
 const DEFAULTS = {
@@ -192,6 +193,7 @@ const DEFAULTS = {
   model: PROVIDERS.openai.model,
   systemPrompt: 'You are a helpful, concise assistant.',
   maxTokens: 8192,
+  thinking: 'high', // DeepSeek: off | low | high | max
   imageKey: '',
   imageBaseUrl: 'https://api.openai.com/v1',
   imageModel: 'gpt-image-1',
@@ -302,7 +304,9 @@ function historyFor(messages) {
       content += (content ? '\n\n' : '') + m.images.map(i => `[An image was generated and shown to the user. Prompt: "${i.prompt}"]`).join('\n');
     }
     if (!content.trim()) continue;
-    out.push({ role: m.role, content });
+    const h = { role: m.role, content };
+    if (m.role === 'assistant') h.reasoning = m.reasoning || '';
+    out.push(h);
   }
   return out;
 }
@@ -324,13 +328,18 @@ async function chatTurn(messages, cb, signal) {
   const hist = historyFor(messages);
   const sys = systemPrompt(canImage);
   let full = '';
+  let thoughts = '';
   const extra = [];
   for (let round = 0; round < 4; round++) {
     const prefix = full ? full + '\n\n' : '';
+    const tPrefix = thoughts ? thoughts + '\n\n' : '';
+    const onText = t => cb.onText(prefix + t);
+    const onReasoning = t => cb.onReasoning(tPrefix + t);
     const r = S.provider === 'anthropic'
-      ? await anthropicStream(sys, hist.concat(extra), canImage, t => cb.onText(prefix + t), signal)
-      : await openaiStream(sys, hist.concat(extra), canImage, t => cb.onText(prefix + t), signal);
+      ? await anthropicStream(sys, hist.concat(extra), canImage, onText, signal)
+      : await openaiStream(sys, hist.concat(extra), canImage, onText, signal, onReasoning);
     if (r.text) full = prefix + r.text;
+    if (r.reasoning) thoughts = tPrefix + r.reasoning;
     if (!r.calls.length) break;
 
     const results = [];
@@ -361,11 +370,11 @@ async function chatTurn(messages, cb, signal) {
         try { input = JSON.parse(c.args || '{}'); } catch { /* ignore */ }
         content.push({ type: 'tool_use', id: c.id, name: c.name, input });
       }
-      extra.push({ role: 'assistant', content });
+      extra.push({ role: 'assistant', content, reasoning: r.reasoning || '' });
       extra.push({ role: 'user', content: results.map(x => ({ type: 'tool_result', tool_use_id: x.id, content: x.content })) });
     } else {
       extra.push({
-        role: 'assistant', content: r.text || null,
+        role: 'assistant', content: r.text || null, reasoning: r.reasoning || '',
         tool_calls: r.calls.map(c => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args || '{}' } })),
       });
       for (const x of results) extra.push({ role: 'tool', tool_call_id: x.id, content: x.content });
@@ -374,21 +383,34 @@ async function chatTurn(messages, cb, signal) {
   return full;
 }
 
-async function openaiStream(sys, messages, canImage, onText, signal) {
+async function openaiStream(sys, messages, canImage, onText, signal, onReasoning) {
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${S.apiKey}` };
   if (S.provider === 'openrouter') headers['X-Title'] = 'Private AI Chat';
-  const body = { model: S.model, stream: true, messages: [{ role: 'system', content: sys }, ...messages] };
+  const deepseek = S.provider === 'deepseek';
+  // DeepSeek thinking mode + tools requires every earlier assistant turn's reasoning to be sent back.
+  // If some turn has none (older message, other provider), use non-thinking mode for this request.
+  const think = deepseek && S.thinking !== 'off' &&
+    !(canImage && messages.some(m => m.role === 'assistant' && !m.reasoning));
+  const wire = messages.map(({ reasoning, ...m }) => (think && m.role === 'assistant' ? { ...m, reasoning_content: reasoning || '' } : m));
+  const body = { model: S.model, stream: true, messages: [{ role: 'system', content: sys }, ...wire] };
   if (canImage) body.tools = [{ type: 'function', function: IMAGE_TOOL }];
+  if (deepseek) {
+    body.thinking = { type: think ? 'enabled' : 'disabled' };
+    if (think) body.reasoning_effort = S.thinking;
+  }
   const resp = await fetch(`${chatBase()}/chat/completions`, {
     method: 'POST', headers, body: JSON.stringify(body), signal, referrerPolicy: 'no-referrer',
   });
   if (!resp.ok) throw await apiError(resp);
   let text = '';
+  let reasoning = '';
   const calls = [];
   for await (const ev of sse(resp)) {
     if (ev.error) throw new Error(ev.error.message || JSON.stringify(ev.error));
     const delta = ev.choices && ev.choices[0] && ev.choices[0].delta;
     if (!delta) continue;
+    const thought = delta.reasoning_content || (typeof delta.reasoning === 'string' ? delta.reasoning : '');
+    if (thought) { reasoning += thought; if (onReasoning) onReasoning(reasoning); }
     if (delta.content) { text += delta.content; onText(text); }
     for (const tc of delta.tool_calls || []) {
       const i = tc.index ?? calls.length;
@@ -398,10 +420,11 @@ async function openaiStream(sys, messages, canImage, onText, signal) {
       if (tc.function && tc.function.arguments) calls[i].args += tc.function.arguments;
     }
   }
-  return { text, calls: calls.filter(Boolean) };
+  return { text, reasoning, calls: calls.filter(Boolean) };
 }
 
 async function anthropicStream(sys, messages, canImage, onText, signal) {
+  messages = messages.map(({ reasoning, ...m }) => m);
   const body = { model: S.model, max_tokens: Number(S.maxTokens) || 8192, system: sys, stream: true, messages };
   if (canImage) body.tools = [{ name: IMAGE_TOOL.name, description: IMAGE_TOOL.description, input_schema: IMAGE_TOOL.parameters }];
   const resp = await fetch(`${PROVIDERS.anthropic.base}/messages`, {
@@ -719,12 +742,14 @@ function msgHtml(m) {
   const imgs = (m.images || []).map(i => `<img data-img="${i.id}" alt="${esc(i.prompt)}" title="${esc(i.prompt)}">`).join('');
   const tag = isUser && m.mode === 'image' ? '<div class="tag">🎨 image prompt</div>' : '';
   const status = m.status ? `<div class="status">${esc(m.status)}</div>` : '';
+  const thoughts = !isUser && m.reasoning && !m.streaming
+    ? `<details class="reasoning"><summary>Reasoning</summary><div>${esc(m.reasoning)}</div></details>` : '';
   const typing = m.streaming && !m.status ? ' typing' : '';
   const err = m.error ? `<div class="error">⚠︎ ${esc(m.error)}</div>` : '';
   const actions = !isUser && !m.streaming
     ? `<div class="actions">${m.text ? '<button type="button" data-act="copy">Copy</button>' : ''}<button type="button" data-act="retry">Retry</button></div>`
     : '';
-  return `<div class="msg ${m.role}" data-id="${m.id}">${tag}<div class="bubble${typing}">${body}${status}${imgs ? `<div class="imgs">${imgs}</div>` : ''}</div>${err}${actions}</div>`;
+  return `<div class="msg ${m.role}" data-id="${m.id}">${tag}${thoughts}<div class="bubble${typing}">${body}${status}${imgs ? `<div class="imgs">${imgs}</div>` : ''}</div>${err}${actions}</div>`;
 }
 async function hydrateImages(root) {
   for (const img of root.querySelectorAll('img[data-img]:not([src])')) {
@@ -775,7 +800,7 @@ el.messages.addEventListener('click', async e => {
   } else if (act.dataset.act === 'retry') {
     const prevUser = current.messages[idx - 1];
     for (const img of m.images || []) await DB.del('images', img.id);
-    Object.assign(m, { text: '', images: [], error: null, status: null });
+    Object.assign(m, { text: '', reasoning: '', images: [], error: null, status: null });
     current.messages.length = idx + 1; // drop anything after this answer
     renderMessages();
     await runAssistant(current, m, prevUser && prevUser.mode === 'image' ? prevUser.text : null);
@@ -855,7 +880,16 @@ async function runAssistant(chat, asst, directImagePrompt) {
       if (img.revised) asst.text = `*Revised prompt:* ${img.revised}`;
     } else {
       await chatTurn(chat.messages.slice(0, -1), {
-        onText: t => { asst.text = t; scheduleUpdate(asst); },
+        onText: t => {
+          asst.text = t;
+          if (asst.status === 'Thinking…') asst.status = null;
+          scheduleUpdate(asst);
+        },
+        onReasoning: t => {
+          asst.reasoning = t;
+          if (!asst.status) asst.status = 'Thinking…';
+          scheduleUpdate(asst);
+        },
         onStatus: s => { asst.status = s; updateMsg(asst); },
         onImage: async (img, prompt) => { await addImage(chat, asst, img, prompt); updateMsg(asst); },
       }, signal);

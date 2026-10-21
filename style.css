@@ -126,6 +126,10 @@ body.veiled #veil { display: block; }
 .imgs { display: grid; gap: 8px; margin-top: 8px; }
 .imgs img { width: 100%; max-width: 512px; border-radius: 12px; background: var(--panel-2); cursor: zoom-in; min-height: 120px; }
 
+.reasoning { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.reasoning summary { cursor: pointer; }
+.reasoning div { white-space: pre-wrap; border-left: 2px solid var(--line); padding-left: 10px; margin-top: 4px; max-height: 40vh; overflow-y: auto; }
+
 /* Markdown */
 .bubble p { margin: 0 0 .7em; }
 .bubble p:last-child { margin-bottom: 0; }
