@@ -20,9 +20,9 @@ A small, private AI chat app for iPhone. It's an installable web app (PWA): no A
 
 ## Deploy to GitHub Pages
 
-1. Push these files to the root of a GitHub repo.
-2. In the repo, go to **Settings → Pages → Build and deployment**, choose *Deploy from a branch*, then `main` and `/ (root)`.
-3. After about a minute, the site is live at `https://<user>.github.io/<repo>/`.
+1. Push these files to a GitHub repo.
+2. In the repo, go to **Settings → Pages → Build and deployment** and set Source to **GitHub Actions**.
+3. Every push to `main` or `ai-chat-app` runs `.github/workflows/pages.yml`, which publishes only the app files. After about a minute, the site is live at `https://<user>.github.io/<repo>/`. You can also re-run it from the **Actions** tab.
 
 Any static HTTPS host works too (Cloudflare Pages, Netlify, …). HTTPS is required for encryption and Face ID.
 
