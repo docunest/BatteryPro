@@ -1,5 +1,5 @@
 // Caches only the app's own files so it opens offline. API requests are never cached or touched.
-const CACHE = 'pac-v4';
+const CACHE = 'pac-v5';
 const SHELL = ['./', 'index.html', 'app.js', 'style.css', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -195,7 +195,10 @@ const DEFAULTS = {
   maxTokens: 8192,
   thinking: 'high', // DeepSeek: off | low | high | max
   imageKey: '',
+  imageProvider: 'openai', // openai | drawthings
   imageBaseUrl: 'https://api.openai.com/v1',
+  dtUrl: '',  // Draw Things API (HTTPS, e.g. via Tailscale)
+  dtSize: 0,  // 0 = use Draw Things' current size; else base side in px
   imageModel: 'gpt-image-1',
   imageSize: 'square',
   imageQuality: 'auto',
@@ -213,6 +216,7 @@ function chatBase() {
   return (S.provider === 'anthropic' ? PROVIDERS.anthropic.base : (S.baseUrl || PROVIDERS[S.provider].base)).replace(/\/+$/, '');
 }
 function imageCreds() {
+  if (S.imageProvider === 'drawthings') return S.dtUrl ? { type: 'drawthings', base: S.dtUrl.trim().replace(/\/+$/, '') } : null;
   if (S.imageKey) return { key: S.imageKey, base: (S.imageBaseUrl || DEFAULTS.imageBaseUrl).replace(/\/+$/, '') };
   if (S.provider === 'openai' && S.apiKey) return { key: S.apiKey, base: chatBase() };
   return null;
@@ -266,9 +270,48 @@ const IMAGE_TOOL = {
   },
 };
 
+// ---------------------------------------------------------------- Draw Things (local Stable Diffusion server)
+const DT_UNREACHABLE = 'Can’t reach Draw Things. Check that Tailscale is on (phone and computer), Draw Things’ API Server is enabled, the helper proxy is running, and the URL in Settings is right.';
+function sniffImageType(b) {
+  if (b[0] === 0xff && b[1] === 0xd8) return 'image/jpeg';
+  if (b[0] === 0x52 && b[1] === 0x49 && b[8] === 0x57) return 'image/webp';
+  return 'image/png';
+}
+function dtFetch(base, path, opts = {}) {
+  if (!/^https:\/\//i.test(base)) {
+    return Promise.reject(new Error('The Draw Things URL must start with https:// — iPhone blocks plain http from this app. See the README for the Tailscale setup.'));
+  }
+  return fetch(base + path, { referrerPolicy: 'no-referrer', ...opts }).catch(e => {
+    throw e.name === 'AbortError' ? e : new Error(DT_UNREACHABLE);
+  });
+}
+async function drawThingsImage(base, prompt, shape, signal) {
+  const body = { prompt, seed: -1 };
+  const side = Number(S.dtSize);
+  if (side) {
+    const long = Math.round((side * 1.5) / 64) * 64;
+    const [width, height] = shape === 'landscape' ? [long, side] : shape === 'portrait' ? [side, long] : [side, side];
+    Object.assign(body, { width, height });
+  }
+  const resp = await dtFetch(base, '/sdapi/v1/txt2img', {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw await apiError(resp);
+  const j = await resp.json();
+  const b64 = j.images && j.images[0];
+  if (!b64) throw new Error('Draw Things returned no image. Make sure a model is selected and a project is open in Draw Things.');
+  const bytes = b64ToBytes(b64.replace(/^data:[^,]+,/, ''));
+  return { bytes, type: sniffImageType(bytes) };
+}
+
 async function generateImage(prompt, shape, signal) {
   const c = imageCreds();
-  if (!c) throw new Error('Image generation needs an OpenAI API key. Add one under Settings → Image generation.');
+  if (!c) {
+    throw new Error(S.imageProvider === 'drawthings'
+      ? 'Add your Draw Things URL under Settings → Image generation.'
+      : 'Image generation needs an OpenAI API key. Add one under Settings → Image generation.');
+  }
+  if (c.type === 'drawthings') return drawThingsImage(c.base, prompt, shape || S.imageSize, signal);
   const model = S.imageModel || DEFAULTS.imageModel;
   const dalle = model.startsWith('dall-e');
   const sz = SHAPES[shape] || SHAPES[S.imageSize] || SHAPES.square;
@@ -979,6 +1022,8 @@ const form = el.settingsForm;
 function syncProviderFields() {
   const p = form.provider.value;
   for (const n of form.querySelectorAll('[data-show]')) n.hidden = !n.dataset.show.split(' ').includes(p);
+  const ip = form.imageProvider.value;
+  for (const n of form.querySelectorAll('[data-img]')) n.hidden = n.dataset.img !== ip;
 }
 function openSettings() {
   for (const [k, v] of Object.entries(S)) if (form[k]) form[k].value = v;
@@ -988,6 +1033,23 @@ function openSettings() {
   el.settings.showModal();
 }
 $('#openSettings').addEventListener('click', openSettings);
+form.imageProvider.addEventListener('change', syncProviderFields);
+$('#dtTest').addEventListener('click', async e => {
+  const btn = e.currentTarget, out = $('#dtStatus');
+  const base = form.dtUrl.value.trim().replace(/\/+$/, '');
+  btn.disabled = true;
+  out.textContent = 'Connecting…';
+  try {
+    const resp = await dtFetch(base, '/');
+    if (!resp.ok) throw await apiError(resp);
+    const cfg = await resp.json().catch(() => ({}));
+    out.textContent = `✓ Connected${cfg.model ? ` — model: ${cfg.model}` : ''}${cfg.width ? ` (${cfg.width}×${cfg.height})` : ''}`;
+  } catch (err) {
+    out.textContent = '✗ ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
 form.provider.addEventListener('change', () => {
   const p = form.provider.value;
   const known = Object.values(PROVIDERS).map(x => x.model);
