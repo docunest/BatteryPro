@@ -35,6 +35,25 @@ Any static HTTPS host works too (Cloudflare Pages, Netlify, …). HTTPS is requi
 
 > Always use the Home Screen app. Its storage is separate from Safari's, and iOS doesn't evict it the way it can evict website data.
 
+## Draw Things (images made on your own Mac)
+
+The app can send image requests to [Draw Things](https://drawthings.ai) running on your Mac, so prompts and images never leave your devices. Two things are needed, because iPhone only lets an HTTPS app call HTTPS addresses, and a browser only reads replies the server allows (CORS):
+
+1. **Draw Things:** open *Settings → Advanced → API Server*. Turn it on with Protocol **HTTP**, Port **7860**, IP **localhost**. Keep a model selected and a project open.
+2. **Proxy helper:** download [`tools/drawthings-proxy.py`](tools/drawthings-proxy.py) and run it on the Mac:
+   ```sh
+   python3 drawthings-proxy.py            # listens on 127.0.0.1:7861, allows only https://docunest.github.io
+   ```
+   If `python3` is missing, run `xcode-select --install` first.
+3. **Tailscale** (free) gives the Mac a private HTTPS address your iPhone can reach from anywhere. Install it on the Mac and the iPhone with the same account, then on the Mac run:
+   ```sh
+   tailscale serve --bg 7861
+   ```
+   The first run asks you to enable HTTPS certificates for your tailnet. It prints an address like `https://my-mac.tail1234.ts.net`.
+4. **In the app:** go to *Settings → Image generation*. Set **Image provider** to *Draw Things*, paste the address, and tap **Test**. It should show the loaded model.
+
+The Mac must be awake with Draw Things open, and Tailscale must be on for the iPhone. *Image size* can follow Draw Things' own setting or be fixed (512 for SD 1.5, 1024 for SDXL/Flux). Generation time depends on your model and Mac.
+
 ## Notes
 
 - `gpt-image-1` requires a *verified* OpenAI organization. If you get a verification error, use `dall-e-3` or verify your org.

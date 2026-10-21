@@ -117,7 +117,32 @@
       </fieldset>
 
       <fieldset>
-        <legend>Image generation (OpenAI Images API)</legend>
+        <legend>Image generation</legend>
+        <label>Image provider
+          <select name="imageProvider">
+            <option value="openai">OpenAI Images API (or compatible)</option>
+            <option value="drawthings">Draw Things (your computer)</option>
+          </select>
+        </label>
+        <div data-img="drawthings">
+          <p class="fine">Images are made on your own computer — prompts never leave your devices. Needs an HTTPS address, e.g. via Tailscale (see README).</p>
+          <label>Draw Things URL
+            <div class="row">
+              <input name="dtUrl" type="url" autocapitalize="off" spellcheck="false" placeholder="https://my-mac.tailnet.ts.net">
+              <button type="button" id="dtTest">Test</button>
+            </div>
+          </label>
+          <p id="dtStatus" class="fine"></p>
+          <label>Image size
+            <select name="dtSize">
+              <option value="0">Use Draw Things’ current setting</option>
+              <option value="512">512 px (SD 1.5)</option>
+              <option value="768">768 px</option>
+              <option value="1024">1024 px (SDXL, Flux)</option>
+            </select>
+          </label>
+        </div>
+        <div data-img="openai">
         <p class="fine">Leave the key empty to reuse the chat key when the provider is OpenAI.</p>
         <label>Image API key
           <input name="imageKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="optional">
@@ -133,6 +158,7 @@
             <option value="dall-e-3"></option>
           </datalist>
         </label>
+        </div>
         <label>Default shape
           <select name="imageSize">
             <option value="square">Square</option>
@@ -140,7 +166,7 @@
             <option value="portrait">Portrait</option>
           </select>
         </label>
-        <label>Quality
+        <label data-img="openai">Quality
           <select name="imageQuality">
             <option value="auto">Auto</option>
             <option value="low">Low</option>
