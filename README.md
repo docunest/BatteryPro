@@ -4,7 +4,7 @@ A small, private AI chat app for iPhone. It's an installable web app (PWA): no A
 
 - **Multiple chats**, with search, rename and delete
 - **Image generation**: ask in plain words ("draw a fox reading a book") and the model calls an image tool. You can also tap 🎨 to send a prompt straight to the image model.
-- **Providers**: OpenAI, Anthropic (Claude), OpenRouter, or any OpenAI-compatible endpoint. Images use the OpenAI Images API (`gpt-image-1`, `dall-e-3`, …).
+- **Providers**: OpenAI, Anthropic (Claude), DeepSeek, OpenRouter, or any OpenAI-compatible endpoint. Images use the OpenAI Images API (`gpt-image-1`, `dall-e-3`, …).
 - **Face ID unlock** (iOS 18+), with a **passcode** as backup
 - Works offline as an app shell. Markdown, code blocks and tables are rendered.
 
@@ -39,6 +39,7 @@ Any static HTTPS host works too (Cloudflare Pages, Netlify, …). HTTPS is requi
 
 - `gpt-image-1` requires a *verified* OpenAI organization. If you get a verification error, use `dall-e-3` or verify your org.
 - On Anthropic or OpenRouter, add an OpenAI key under *Image generation* to enable images.
+- **DeepSeek**: choose provider *DeepSeek* with model `deepseek-flash` (cheap) or `deepseek-v4-pro`. *Thinking* sets the reasoning depth (Off / Low / High / Max). The reasoning shows in a collapsible block. DeepSeek stores data in China, so don't send it anything sensitive.
 - Tap **Fetch** next to *Model* to list the models your key can use.
 - Your passkey is created for the site's domain. If you move the app to a different URL, enable Face ID again there.
 

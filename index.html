@@ -82,13 +82,14 @@
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic (Claude)</option>
             <option value="openrouter">OpenRouter</option>
+            <option value="deepseek">DeepSeek</option>
             <option value="custom">Custom (OpenAI-compatible)</option>
           </select>
         </label>
         <label>API key
           <input name="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-…">
         </label>
-        <label data-show="openai custom openrouter">Base URL
+        <label data-show="openai custom openrouter deepseek">Base URL
           <input name="baseUrl" type="url" autocapitalize="off" spellcheck="false">
         </label>
         <label>Model
@@ -100,6 +101,14 @@
         </label>
         <label>System prompt
           <textarea name="systemPrompt" rows="3"></textarea>
+        </label>
+        <label data-show="deepseek">Thinking
+          <select name="thinking">
+            <option value="off">Off (fastest, cheapest)</option>
+            <option value="low">Low</option>
+            <option value="high">High</option>
+            <option value="max">Max</option>
+          </select>
         </label>
         <label data-show="anthropic">Max output tokens
           <input name="maxTokens" type="number" min="256" step="256">
