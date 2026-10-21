@@ -32,18 +32,14 @@ All of these are tunable in `config.toml` (`[thermostat]`).
 
 ## web-ble: phone / browser app
 
-Web Bluetooth needs the page on an HTTPS address (or `localhost`). The app is
-plain static files (no build step), so any static host works. This repo is
-private, so free options that can deploy from a private repo:
+Web Bluetooth needs the page on an HTTPS address (or `localhost`). The repo's
+GitHub Pages workflow (`.github/workflows/pages.yml`) publishes `web-ble/`
+next to the AI chat app on every push to `main`:
 
-- **Cloudflare Pages**: *Workers & Pages → Create → Pages → Connect to Git*,
-  pick this repo, framework preset *None*, build command empty, output
-  directory `projects/diesel-heater/web-ble`.
-- **Netlify**: *Add new site → Import from Git*, base directory
-  `projects/diesel-heater/web-ble`, no build command. Or drag the `web-ble`
-  folder onto <https://app.netlify.com/drop> for a one-off upload.
-- **Locally on the Mac:** `cd web-ble && python3 -m http.server 8000`, open
-  <http://localhost:8000> in Chrome.
+**<https://docunest.github.io/BatteryPro/diesel-heater/>**
+
+To try changes locally on the Mac: `cd web-ble && python3 -m http.server 8000`
+and open <http://localhost:8000> in Chrome.
 
 Then open the URL in:
 

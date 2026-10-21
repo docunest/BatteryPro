@@ -30,6 +30,9 @@ jobs:
           mkdir -p _site
           cp -r index.html style.css app.js sw.js manifest.webmanifest icons .nojekyll _site/
           sed -i "s/__BUILD_INFO__/$(date -u '+%Y-%m-%d %H:%M UTC') · ${GITHUB_SHA::7}/" _site/app.js
+          # Diesel heater Bluetooth app (diesel-heater/README.md)
+          mkdir -p _site/diesel-heater
+          cp diesel-heater/web-ble/{index.html,protocol.js,sw.js,manifest.webmanifest,icon.svg} _site/diesel-heater/
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

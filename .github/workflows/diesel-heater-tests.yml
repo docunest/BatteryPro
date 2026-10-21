@@ -1,0 +1,33 @@
+name: Diesel heater tests
+
+on:
+  push:
+    paths: ["diesel-heater/**", ".github/workflows/diesel-heater-tests.yml"]
+  pull_request:
+    paths: ["diesel-heater/**", ".github/workflows/diesel-heater-tests.yml"]
+
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: diesel-heater/bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[all,dev]'
+      - run: pytest -q
+
+  web-ble:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: diesel-heater/web-ble
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test

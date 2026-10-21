@@ -65,3 +65,7 @@ The Mac must be awake with Draw Things open, and Tailscale must be on for the iP
 ## Files
 
 `index.html` · `style.css` · `app.js` (all logic) · `sw.js` (offline cache, never caches API calls) · `manifest.webmanifest` · `icons/`
+
+## Other projects in this repo
+
+- [`diesel-heater/`](diesel-heater) – Bluetooth control for a Vevor diesel heater (web app at `/diesel-heater/`, plus a smart-home bridge).
