@@ -1,6 +1,6 @@
 // Minimal offline cache so the installed app opens without network.
-const CACHE = "heater-v2";
-const FILES = ["./", "index.html", "protocol.js", "manifest.webmanifest", "icon.svg"];
+const CACHE = "heater-v3";
+const FILES = ["./", "index.html", "protocol.js", "victron.js", "victron-ui.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES))));
 self.addEventListener("activate", (e) =>

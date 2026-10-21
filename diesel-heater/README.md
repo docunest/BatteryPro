@@ -53,6 +53,28 @@ Changing level switches the heater into fixed-level mode automatically.
 If your heater isn't named `BYD…`, change the prefix or tick *Show all
 devices* under Settings. Set the passkey there if you changed it from 1234.
 
+### Victron solar charger and Blue Smart charger
+
+The same page shows live data from Victron SmartSolar/BlueSolar MPPT chargers
+and Blue Smart chargers. It reads their Bluetooth **Instant Readout**
+broadcasts, so it doesn't connect to them: VictronConnect and the heater
+connection keep working.
+
+1. In VictronConnect, open the device → ⚙️ → ⋮ → **Product info**. Make sure
+   *Instant readout via Bluetooth* is enabled, then tap **Show** next to
+   *Instant readout details* and copy the encryption key.
+2. In the web app tap **Show Victron devices**, then paste the key under the
+   device and tap **Save key**. Keys are stored only in that browser.
+
+It shows:
+- **MPPT:** solar power, battery voltage, charge current, today's yield, load
+  output, charge state and errors.
+- **Charger:** voltage and current per output, temperature, charge state and errors.
+
+Readout is monitoring only. Listening for broadcasts works in Bluefy. In
+Chrome on Android or Mac it needs
+`chrome://flags/#enable-experimental-web-platform-features`.
+
 The page only controls the heater while it's open in the foreground. On
 iPhone the connection drops when you switch apps or lock the screen, and it
 reconnects when you come back.

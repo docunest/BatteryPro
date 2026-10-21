@@ -28,6 +28,7 @@
   dl { display:grid; grid-template-columns:1fr auto; gap:4px 12px; margin:0; font-size:14px; }
   dt { color:var(--mut); } dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
   .err { color:var(--acc); font-weight:600; }
+  a { color:var(--mut); }
   input { font:inherit; width:6em; padding:6px 8px; border:1px solid var(--bd); border-radius:8px; background:var(--card); color:var(--fg); }
   details summary { cursor:pointer; color:var(--mut); font-size:14px; }
   label { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px; font-size:14px; }
@@ -62,6 +63,13 @@
 
   <div class="card"><dl id="diag"></dl></div>
 
+  <div class="card" id="victron">
+    <div class="row"><b>Victron</b><span class="mut">solar &amp; charger</span></div>
+    <button id="victron-start" class="wide" style="margin-top:10px;font-size:16px">Show Victron devices</button>
+    <p class="mut" id="victron-status" style="margin:8px 0 0"></p>
+    <div id="victron-list"></div>
+  </div>
+
   <div class="card">
     <details>
       <summary>Settings</summary>
@@ -73,6 +81,7 @@
 </main>
 <script type="module">
 import { SERVICE_UUID, CHAR_UUID, CMD, MODE, buildCommand, parseStatus } from "./protocol.js";
+import { initVictron } from "./victron-ui.js";
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -197,6 +206,8 @@ function render() {
   ];
   $("diag").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
 }
+
+initVictron($("victron"));
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
