@@ -200,6 +200,7 @@ const DEFAULTS = {
   imageSize: 'square',
   imageQuality: 'auto',
   autoLock: 1,
+  retentionDays: 7, // unpinned chats are deleted this many days after their last message; 0 = never
 };
 let S = { ...DEFAULTS };
 async function loadSettings() {
@@ -556,7 +557,7 @@ async function loadChats() {
   for (const rec of await DB.all('chats')) {
     try { chats.push(await Vault.dec(rec)); } catch { /* corrupt record */ }
   }
-  chats.sort((a, b) => b.updated - a.updated);
+  sortChats();
 }
 async function imageUrl(id) {
   if (imgUrls.has(id)) return imgUrls.get(id);
@@ -628,6 +629,7 @@ el.faceBtn.addEventListener('click', async () => {
 async function enterApp() {
   await loadSettings();
   await loadChats();
+  await cleanupChats();
   el.lock.hidden = true;
   el.app.hidden = false;
   el.pass1.value = el.pass2.value = '';
@@ -648,6 +650,7 @@ function lockApp() {
   el.chatList.innerHTML = '';
   if (el.settings.open) el.settings.close();
   if (el.viewer.open) el.viewer.close();
+  if ($('#chatMenu').open) $('#chatMenu').close();
   showLock();
 }
 
@@ -660,6 +663,7 @@ document.addEventListener('visibilitychange', () => {
     if (Vault.mk && Number(S.autoLock) === 0) lockApp();
   } else {
     if (Vault.mk && Date.now() - hiddenAt >= Number(S.autoLock) * 60e3) lockApp();
+    else cleanupChats();
     document.body.classList.remove('veiled');
   }
 });
@@ -671,14 +675,43 @@ function fmtDate(t) {
     ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
+// ---------------------------------------------------------------- pinning & auto-cleanup
+const DAY = 86400e3;
+function sortChats() {
+  chats.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updated - a.updated);
+}
+// Unpinning restarts the clock, so an old chat doesn't vanish the moment it is unpinned.
+function expiresAt(c) {
+  const days = Number(S.retentionDays);
+  if (c.pinned || !days) return Infinity;
+  return Math.max(c.updated, c.unpinnedAt || 0) + days * DAY;
+}
+function timeLeft(c) {
+  const ms = expiresAt(c) - Date.now();
+  if (ms === Infinity) return '';
+  if (ms <= 0) return 'deleting soon';
+  return ms < DAY ? `${Math.max(1, Math.ceil(ms / 3600e3))}h left` : `${Math.ceil(ms / DAY)}d left`;
+}
+async function cleanupChats() {
+  if (!Vault.mk) return;
+  const now = Date.now();
+  const expired = chats.filter(c => expiresAt(c) <= now && !(busy && c === current));
+  for (const c of expired) await deleteChat(c);
+  if (expired.length && !el.app.hidden) renderChatList();
+}
+setInterval(cleanupChats, 3600e3);
+
 function renderChatList() {
   const q = el.search.value.trim().toLowerCase();
   const list = chats.filter(c => !q || c.title.toLowerCase().includes(q) || c.messages.some(m => (m.text || '').toLowerCase().includes(q)));
-  el.chatList.innerHTML = list.map(c => `
+  el.chatList.innerHTML = list.map(c => {
+    const left = timeLeft(c);
+    return `
     <li data-id="${c.id}" class="${current && current.id === c.id ? 'active' : ''}">
-      <button type="button" class="chat-open"><span class="t">${esc(c.title)}</span><span class="d">${fmtDate(c.updated)}</span></button>
+      <button type="button" class="chat-open"><span class="t">${c.pinned ? '📌 ' : ''}${esc(c.title)}</span><span class="d">${fmtDate(c.updated)}${left ? ` · ${left}` : ''}</span></button>
       <button type="button" class="chat-more" aria-label="Chat options">⋯</button>
-    </li>`).join('') || `<li class="muted fine">${q ? 'No matches' : 'No chats yet'}</li>`;
+    </li>`;
+  }).join('') || `<li class="muted fine">${q ? 'No matches' : 'No chats yet'}</li>`;
 }
 el.search.addEventListener('input', renderChatList);
 el.chatList.addEventListener('click', async e => {
@@ -686,14 +719,41 @@ el.chatList.addEventListener('click', async e => {
   if (!li) return;
   const chat = chats.find(c => c.id === li.dataset.id);
   if (e.target.closest('.chat-open')) { openChat(chat); closeDrawer(); return; }
-  if (e.target.closest('.chat-more')) {
-    const action = prompt(`“${chat.title}”\nType a new name to rename, or type DELETE to delete this chat:`, chat.title);
-    if (action === null) return;
-    if (action.trim() === 'DELETE') await deleteChat(chat);
-    else if (action.trim()) { chat.title = action.trim().slice(0, 80); await saveChat(chat); }
-    renderChatList();
-    if (current) el.chatTitle.textContent = current.title;
+  if (e.target.closest('.chat-more')) openChatMenu(chat);
+});
+
+const chatMenu = $('#chatMenu');
+let menuChat = null;
+function openChatMenu(chat) {
+  menuChat = chat;
+  $('#chatMenuTitle').textContent = chat.title;
+  $('#chatPin').textContent = chat.pinned ? 'Unpin' : '📌 Pin (never auto-delete)';
+  const left = timeLeft(chat);
+  $('#chatMenuInfo').textContent = chat.pinned ? 'Pinned — kept until you delete it.'
+    : left ? `Deletes automatically (${left}) unless pinned or continued.` : '';
+  chatMenu.showModal();
+}
+chatMenu.addEventListener('click', async e => {
+  const btn = e.target.closest('button');
+  if (!btn || !menuChat) return;
+  const chat = menuChat;
+  if (btn.id === 'chatPin') {
+    chat.pinned = !chat.pinned;
+    if (!chat.pinned) chat.unpinnedAt = Date.now();
+    await saveChat(chat);
+    sortChats();
+  } else if (btn.id === 'chatRename') {
+    const name = prompt('Rename chat:', chat.title);
+    if (name && name.trim()) { chat.title = name.trim().slice(0, 80); await saveChat(chat); }
+  } else if (btn.id === 'chatDelete') {
+    if (busy && chat === current) return;
+    if (!confirm(`Delete “${chat.title}”?`)) return;
+    await deleteChat(chat);
   }
+  chatMenu.close();
+  menuChat = null;
+  renderChatList();
+  el.chatTitle.textContent = current ? current.title : 'New chat';
 });
 async function deleteChat(chat) {
   for (const m of chat.messages) for (const img of m.images || []) {
@@ -907,7 +967,7 @@ async function runAssistant(chat, asst, directImagePrompt) {
     setBusy(false);
     if (Vault.mk) {
       await saveChat(chat);
-      chats.sort((a, b) => b.updated - a.updated);
+      sortChats();
       if (current === chat) updateMsg(asst);
       renderChatList();
     }
@@ -948,6 +1008,8 @@ form.addEventListener('submit', async e => {
   S = readForm();
   await saveSettings();
   el.settings.close();
+  await cleanupChats();
+  renderChatList();
   if (!current || !current.messages.length) renderMessages();
 });
 $('#fetchModels').addEventListener('click', async e => {

@@ -179,6 +179,9 @@ fieldset label > input, fieldset label > select, fieldset label > textarea, fiel
 #viewer img { max-width: 100%; max-height: 70vh; border-radius: 10px; }
 #viewer .row { justify-content: center; }
 #tapDlg { text-align: center; }
+.sheet { width: 100%; }
+.sheet h3 { margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-actions { display: grid; gap: 8px; margin-top: 12px; }
 #tapDlg .row { justify-content: center; }
 
 /* Wide screens: persistent sidebar. Narrow: slide-in drawer */

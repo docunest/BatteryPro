@@ -2,7 +2,7 @@
 
 A small, private AI chat app for iPhone. It's an installable web app (PWA): no App Store, no Apple developer account, and no build step.
 
-- **Multiple chats**, with search, rename and delete
+- **Multiple chats**, with search, rename and delete. **Pin** chats to keep them; unpinned chats are deleted automatically 7 days after their last message (configurable in Settings → Data).
 - **Image generation**: ask in plain words ("draw a fox reading a book") and the model calls an image tool. You can also tap 🎨 to send a prompt straight to the image model.
 - **Providers**: OpenAI, Anthropic (Claude), DeepSeek, OpenRouter, or any OpenAI-compatible endpoint. Images use the OpenAI Images API (`gpt-image-1`, `dall-e-3`, …).
 - **Face ID unlock** (iOS 18+), with a **passcode** as backup
