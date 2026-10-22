@@ -80,8 +80,8 @@
   </div>
 </main>
 <script type="module">
-import { SERVICE_UUID, CHAR_UUID, CMD, MODE, buildCommand, parseStatus } from "./protocol.js";
-import { initVictron } from "./victron-ui.js";
+import { SERVICE_UUID, CHAR_UUID, CMD, MODE, buildCommand, parseStatus } from "./protocol.js?v=4";
+import { initVictron } from "./victron-ui.js?v=4";
 
 const $ = (id) => document.getElementById(id);
 const store = {
