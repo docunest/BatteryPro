@@ -125,6 +125,18 @@ async function watchDevice(dev) {
   listening = true;
 }
 
+// Shown when something doesn't work, so the browser's actual support can be reported.
+function capabilities(dev) {
+  const bt = navigator.bluetooth || {};
+  const has = (o, k) => (o && typeof o[k] === "function" ? "yes" : "no");
+  return [
+    `requestLEScan: ${has(bt, "requestLEScan")}`,
+    `getDevices: ${has(bt, "getDevices")}`,
+    `watchAdvertisements: ${dev ? has(dev, "watchAdvertisements") : "?"}`,
+    navigator.userAgent.slice(-60),
+  ].join(" · ");
+}
+
 async function start() {
   const bt = navigator.bluetooth;
   if (!bt) return;
@@ -141,21 +153,24 @@ async function start() {
       listening = true;
       $btn().textContent = "Scanning for Victron devices";
       $btn().disabled = true;
-    } else if (window.BluetoothDevice && "watchAdvertisements" in BluetoothDevice.prototype) {
-      // Pick one device at a time; tap again to add another.
-      let dev;
-      try {
-        dev = await bt.requestDevice({ filters: [{ manufacturerData: [{ companyIdentifier: ID }] }], optionalManufacturerData: [ID] });
-      } catch (e) {
-        if (e.name !== "TypeError") throw e;
-        dev = await bt.requestDevice({ acceptAllDevices: true, optionalManufacturerData: [ID] });
+    } else {
+      // Pick one device at a time; tap again to add another. Some browsers (e.g. Bluefy)
+      // only expose watchAdvertisements on the device object, so check there.
+      const dev = await bt.requestDevice({ acceptAllDevices: true, optionalManufacturerData: [ID] });
+      if (typeof dev.watchAdvertisements !== "function") {
+        statusEl.innerHTML = `This browser can connect to Bluetooth devices but can't receive their broadcasts,
+          which Victron Instant Readout needs.<br><small>${esc(capabilities(dev))}</small>`;
+        return;
       }
       await watchDevice(dev);
       $btn().textContent = "Add another Victron device";
-    } else {
-      statusEl.innerHTML = `This browser can't receive Bluetooth broadcasts. On iPhone use Bluefy; on Android/Mac Chrome enable
-        <code>chrome://flags/#enable-experimental-web-platform-features</code>.`;
-      return;
+      const name = dev.name || "the device";
+      setTimeout(() => {
+        if (!live.has(dev.id)) {
+          statusEl.innerHTML = `No broadcasts received from ${esc(name)}. Check that it's a Victron device and that
+            Instant readout is enabled in VictronConnect.<br><small>${esc(capabilities(dev))}</small>`;
+        }
+      }, 15000);
     }
   } catch (e) {
     if (e.name !== "NotFoundError" && e.name !== "AbortError") statusEl.textContent = "Couldn't start: " + e.message;
