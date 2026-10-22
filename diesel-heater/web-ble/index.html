@@ -78,10 +78,12 @@
       <label>Show all Bluetooth devices <input id="all" type="checkbox" style="width:auto"></label>
     </details>
   </div>
+  <!-- Bump on every change (also the ?v= on the imports below) so you can tell which version is loaded. -->
+  <p class="mut" style="text-align:center;margin:16px 0 8px">Build v5 · otter</p>
 </main>
 <script type="module">
-import { SERVICE_UUID, CHAR_UUID, CMD, MODE, buildCommand, parseStatus } from "./protocol.js?v=4";
-import { initVictron } from "./victron-ui.js?v=4";
+import { SERVICE_UUID, CHAR_UUID, CMD, MODE, buildCommand, parseStatus } from "./protocol.js?v=5";
+import { initVictron } from "./victron-ui.js?v=5";
 
 const $ = (id) => document.getElementById(id);
 const store = {

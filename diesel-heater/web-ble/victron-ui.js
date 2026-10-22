@@ -1,6 +1,6 @@
 // Victron card: listens to Instant Readout broadcasts (no connection needed, so the
 // heater link and VictronConnect keep working) and shows live MPPT / charger values.
-import { VICTRON_COMPANY_ID as ID, READOUT_TYPES, STATES, errorText, decode, parseKey } from "./victron.js?v=4";
+import { VICTRON_COMPANY_ID as ID, READOUT_TYPES, STATES, errorText, decode, parseKey } from "./victron.js?v=5";
 
 const STORE_KEY = "victron-devices";
 const STALE_MS = 30000;

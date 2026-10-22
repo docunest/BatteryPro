@@ -1,6 +1,6 @@
 // Offline copy of the app. Always asks the server first (bypassing the browser's HTTP
 // cache, which GitHub Pages sets to 10 minutes) so updates show up on the next reload.
-const CACHE = "heater-v4";
+const CACHE = "heater-v5";
 const FILES = ["./", "index.html", "protocol.js", "victron.js", "victron-ui.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", (e) =>
